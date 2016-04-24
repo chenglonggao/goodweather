@@ -10,12 +10,16 @@ import com.gcl.goodweather.domain.City;
 import com.gcl.goodweather.domain.County;
 import com.gcl.goodweather.domain.Province;
 import com.gcl.goodweather.utils.HttpCallbackListener;
-import com.gcl.goodweather.utils.HttpUtils;
-import com.gcl.goodweather.utils.Utils;
+import com.gcl.goodweather.utils.HttpUtility;
+import com.gcl.goodweather.utils.Utility;
 
 import android.app.Activity;
 import android.app.ProgressDialog;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -39,24 +43,24 @@ public class ChooseAreaActivity extends Activity {
 	private County countyObj;
 	private String provinceCode;
 	private String cityCode;
+	private String countyCode;
 	private String provinceName;
 	private String cityName;
+	private String countyName;
+	public static final String CHINA_CODE = "0";
 	public static final String PROVINCE_TITLE = "全国";
 	public static final int PROVINCE_LEVEL = 1;
 	public static final int CITY_LEVEL = 2;
 	public static final int COUNTY_LEVEL = 3;
-	
-	
-	
-	
+	public static final int WEATHER_CODE_LEVEL = 4;
+	public static final int WEATHER_INFO_LEVEL = 5;
 	/**
 	 * represent which area(province, city, county) is displayed in the current activity
 	 */
 	public int currentLevel = PROVINCE_LEVEL;
 	
 	
-	public static final String CHINA_CODE = "0";//
-//	public final GoodWeatherDB db = new GoodWeatherDB(this);???为什么在这个位置设置db不行呢？？没有被初始化还是其他原因
+	//public final GoodWeatherDB db = new GoodWeatherDB(this);???为什么在这个位置设置db不行呢？？没有被初始化还是其他原因
 	/**
 	 * use to restore the data which is displayed in the listview;
 	 */
@@ -68,20 +72,30 @@ public class ChooseAreaActivity extends Activity {
 		super.onCreate(savedInstanceState);
 		requestWindowFeature(Window.FEATURE_NO_TITLE);
 		setContentView(R.layout.area_activity_layout);
-
-		title_text = (TextView) findViewById(R.id.title_text);
-		list_view = (ListView) findViewById(R.id.list_view);
-
 		
-		adapter = new ArrayAdapter<String>(ChooseAreaActivity.this, android.R.layout.simple_list_item_1, dataList);
+		Intent startIntent = getIntent();
+		boolean isFromWeatherActivity = startIntent.getBooleanExtra("isFromWeatherActivity", false);
+		SharedPreferences sp = this.getSharedPreferences("weatherData", MODE_PRIVATE);// find a callback method when
+		String weatherContent = sp.getString("weatherContent", "");
+
+		if (!isFromWeatherActivity && !TextUtils.isEmpty(weatherContent)) {//if this activity is not started by the weatherActivity, then we start hte weather acvityty.
+				Intent weatherActivityIntent = new Intent(ChooseAreaActivity.this, WeatherInfoActivity.class);
+				startActivity(weatherActivityIntent);
+				this.finish();
+		} 
+			title_text = (TextView) findViewById(R.id.title_text);
+			list_view = (ListView) findViewById(R.id.list_view);
+			adapter = new ArrayAdapter<String>(ChooseAreaActivity.this, android.R.layout.simple_list_item_1, dataList);
+			// we can set the adapter even if the datalist of it is empty,
+			// then we can add the data to the datalist and invoke the notify()
+			// method to update the listview,
+			// so that we can display the data on the UI.
+			list_view.setAdapter(adapter);
+			list_view.setOnItemClickListener(new SelectedItemListener());
 			
-		//we can set the adapter even if the datalist of it is empty, 
-		//then we can add the data to the datalist and invoke the notify() method to update the listview,
-		//so that we can display the data on the UI.
-		list_view.setAdapter(adapter);
-		list_view.setOnItemClickListener(new SelectedItemListener());
+			
+			displayProvince();// display the data of the province in the ChooseAreaActivity
 		
-		displayProvince();//display the data of the province in the ChooseAreaActivity
 	}
 	
 
@@ -89,13 +103,14 @@ public class ChooseAreaActivity extends Activity {
 	 * query the data of the provinces(from database or server), and then display it in the listview
 	 */
 	private void displayProvince() {
-		dataList.clear();
+	
 		final GoodWeatherDB db = new GoodWeatherDB(this);
 		//when the database is not empty;
 		provinceList = db.loadProvinceFromDB();
 		title_text.setText(PROVINCE_TITLE);
 		
 		if (provinceList.size() != 0) {
+			dataList.clear();
 			for (Iterator<Province> iter = provinceList.iterator(); iter.hasNext();) {
 				Province provinceObj = iter.next();
 				dataList.add(provinceObj.getprovinceName());
@@ -104,7 +119,7 @@ public class ChooseAreaActivity extends Activity {
 				list_view.setSelection(0);
 			}
 		} else {
-			queryAndDisplayFromServer(CHINA_CODE);
+			queryFromServer(CHINA_CODE);
 		}
 	}
 	
@@ -114,24 +129,19 @@ public class ChooseAreaActivity extends Activity {
 	 * query the data of the city(from the database or server) and display it in the activity;
 	 */
 	private void displayCity(String provinceCode) {
-		dataList.clear();
 		final GoodWeatherDB db = new GoodWeatherDB(this);
-		
 		cityList = db.loadCityFromDB(provinceCode);
-		
-			if (cityList.size() != 0) {
-				for (Iterator<City> iter = cityList.iterator(); iter.hasNext();) {
-					cityObj = iter.next();
-					
-					
-					dataList.add(cityObj.getCityName());
-
-					adapter.notifyDataSetChanged();
-					list_view.setSelection(0);
-				}
-			} else {
-				queryAndDisplayFromServer(provinceCode);
+		if (cityList.size() != 0) {
+			dataList.clear();
+			for (Iterator<City> iter = cityList.iterator(); iter.hasNext();) {
+				cityObj = iter.next();
+				dataList.add(cityObj.getCityName());
+				adapter.notifyDataSetChanged();
+				list_view.setSelection(0);
 			}
+		} else {
+			queryFromServer(provinceCode);
+		}
 	}
 	
 	
@@ -140,44 +150,22 @@ public class ChooseAreaActivity extends Activity {
 	 * query the data of the county(from the database or server) and display it in the activity;
 	 */
 	private void displayCounty(String cityCode) {
-		dataList.clear();
-		
 		final GoodWeatherDB db = new GoodWeatherDB(this);
-		
 		countyList = db.loadCountyFromDB(cityCode);
-		
 		if (countyList.size() != 0) {
+			dataList.clear();
 			for (Iterator<County> iter = countyList.iterator(); iter.hasNext();) {
 				countyObj = iter.next();
 				dataList.add(countyObj.getCountyName());
-				
 				adapter.notifyDataSetChanged();
 				list_view.setSelection(0);
 			}
 		} else {
-			queryAndDisplayFromServer(cityCode);
+			queryFromServer(cityCode);
 		}
-		
 	}
 	
-	/**
-	 * called when you press the back key
-	 */
-	@Override
-	public void onBackPressed() {
-		if(currentLevel == PROVINCE_LEVEL){
-			super.onBackPressed();//return to the home screen
-		} else if(currentLevel == CITY_LEVEL) {
-			currentLevel = PROVINCE_LEVEL;
-			title_text.setText(PROVINCE_TITLE);
-			displayProvince();
-			
-		} else if(currentLevel == COUNTY_LEVEL) {
-			currentLevel = CITY_LEVEL;
-			title_text.setText(provinceName);
-			displayCity(provinceCode);
-		}
-	}
+	
 
 
 	/**
@@ -185,21 +173,17 @@ public class ChooseAreaActivity extends Activity {
 	 * then we should request it from the server and write it into the database,
 	 * and then invoke the corresponding display() method;
 	 */
-	private void queryAndDisplayFromServer(final String areaCode) {
+	private void queryFromServer(final String areaCode) {
 		final GoodWeatherDB db = new GoodWeatherDB(this);
 		String address;
-		
 		if(areaCode == CHINA_CODE) {
 			address = "http://www.weather.com.cn/data/list3/city.xml";
-		} else {
+		}else {//used to request the name list of the cites or counties
 			address = "http://www.weather.com.cn/data/list3/city" + areaCode + ".xml";
-			Log.i("TAG", "areaCode = " + areaCode);
 		}
-		
 		showProgressDialog();
 		//This is a classical mode: use an interface as a args, then handle the result by implementing the method of the interface
-		HttpUtils.sendHttpRequest(address, new HttpCallbackListener() {
-			
+		HttpUtility.sendHttpRequest(address, new HttpCallbackListener() {
 			@Override
 			public void requestSuccessfully(final String response) {//this method runs in the worker thread
 				runOnUiThread(new Runnable() {//跨线程方法：将改变ui界面的操作，由子线程中的操作转换到主线程
@@ -207,19 +191,18 @@ public class ChooseAreaActivity extends Activity {
 					public void run() {
 						
 						if (currentLevel == PROVINCE_LEVEL) {
-							Utils.parseHttpResponseOfP(response, db);
+							Utility.parseHttpResponseOfP(response, db);//hasn't determine whether the parse operation is successful
 							displayProvince();
+							
 						} else if (currentLevel == CITY_LEVEL) {
-							Utils.parseHttpResponseOfCity(response, areaCode, db);
+							Utility.parseHttpResponseOfCity(response, areaCode, db);
 							displayCity(areaCode);
 							
-							
 						} else if (currentLevel == COUNTY_LEVEL){
-							Utils.parseHttpResponseOfCounty(response, areaCode, db);
+							Utility.parseHttpResponseOfCounty(response, areaCode, db);
 							displayCounty(areaCode);
 							
-						}
-						
+						} 
 						closeProgressDialog();
 					}
 				});
@@ -228,14 +211,18 @@ public class ChooseAreaActivity extends Activity {
 			@Override
 			public void requestFailed() {
 				runOnUiThread(new Runnable() {
-					
 					@Override
 					public void run() {
 						closeProgressDialog();
+						//These conditions used to handle the event that we make a double click on the item when the network is disconnected.
+						if (currentLevel == CITY_LEVEL) {
+							currentLevel = PROVINCE_LEVEL;
+						} else if (currentLevel == COUNTY_LEVEL) {
+							currentLevel = CITY_LEVEL;
+						} 
 						Toast.makeText(ChooseAreaActivity.this, "网络请求失败", Toast.LENGTH_LONG).show();
 					}
 				});
-				
 			}
 		});
 	}
@@ -251,7 +238,6 @@ public class ChooseAreaActivity extends Activity {
 		@Override
 		public void onItemClick(AdapterView<?> parent, View view, int position,
 				long id) {
-			
 			
 			if(currentLevel == PROVINCE_LEVEL && provinceList != null && provinceList.size() != 0) {//如果点击的是province的条目时
 				provinceObj = provinceList.get(position);//得到点击省份的province对象
@@ -269,37 +255,63 @@ public class ChooseAreaActivity extends Activity {
 				
 				currentLevel = COUNTY_LEVEL;
 				displayCounty(cityCode);
-			}
+			} else if (currentLevel == COUNTY_LEVEL && countyList != null && countyList.size() != 0){
+				countyObj = countyList.get(position);
+				countyCode = countyObj.getCountyCode();
+				countyName = countyObj.getCountyName();
+			 
+				Intent weatherActivityIntent =  new Intent(ChooseAreaActivity.this, WeatherInfoActivity.class);
+				weatherActivityIntent.putExtra("countyCode", countyCode);
+				
+				SharedPreferences sp = ChooseAreaActivity.this.getSharedPreferences("weatherData",MODE_PRIVATE);
+				Editor editor = sp.edit();
+				editor.putBoolean("countySelected", true);//this
+				editor.commit();
+				
+				startActivity(weatherActivityIntent);
+				ChooseAreaActivity.this.finish();
+			} 
 		}
 	}
-	
-	
-	
-	
+ 
+	/**
+	 * called when you press the back key
+	 */
+	@Override
+	public void onBackPressed() {
+		if (currentLevel == PROVINCE_LEVEL) {
+			super.onBackPressed();// return to the home screen
+		} else if (currentLevel == CITY_LEVEL) {
+			currentLevel = PROVINCE_LEVEL;
+			title_text.setText(PROVINCE_TITLE);
+			displayProvince();
+
+		} else if (currentLevel == COUNTY_LEVEL) {
+			currentLevel = CITY_LEVEL;
+			title_text.setText(provinceName);
+			displayCity(provinceCode);
+		}
+	}
+ 
 	/**
 	 * show the progress in the activity
 	 */
 	private void showProgressDialog() {
-		if(progressDialog == null) {
+		if (progressDialog == null) {
 			progressDialog = new ProgressDialog(this);
 			progressDialog.setMessage("正在加载中……");
 			progressDialog.setCanceledOnTouchOutside(false);
 			progressDialog.setCancelable(true);
 		}
 		progressDialog.show();
-		
 	}
-	
-	
+	 
 	/**
 	 * close the ProgressDialog
 	 */
 	private void closeProgressDialog() {
-		
 		if (progressDialog != null) {
 			progressDialog.dismiss();
 		}
 	}
-	
-
 }

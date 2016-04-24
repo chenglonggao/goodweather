@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
+import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
@@ -14,9 +15,7 @@ import android.util.Log;
  * @author gcl
  * 
  */
-public class HttpUtils {
-
-
+public class HttpUtility {
 	/**
 	 * the operation of sending request to the server
 	 */
@@ -25,24 +24,22 @@ public class HttpUtils {
 		new Thread(new Runnable() {
 			@Override
 			public void run() {
-				Log.i("TAG", "进入网络请求 ");
 				HttpURLConnection connection = null;
 				try {
 					URL url = new URL(path);
 					connection = (HttpURLConnection) url.openConnection();
 					
+					if (Build.VERSION.SDK != null && Build.VERSION.SDK_INT > 13) {//If there isn't the two lines codes, it will throw EOFException.I get this from the stack overflow site.
+						connection.setRequestProperty("Connection", "close");
+					}
 					connection.setRequestMethod("GET");
 					connection.setReadTimeout(8000);
 					connection.setReadTimeout(8000);
 					int code = connection.getResponseCode();		
-					
-					Log.i("TAG", "网络请求返回码code= " + code);
-					
+			 
 					if (200 == code) {
 						InputStream is = connection.getInputStream();
-						String response = Utils.handleStream(is);
-
-
+						String response = Utility.handleStream(is);
 						hcl.requestSuccessfully(response);//invoke this method when the request the server successfully.
 					}
 					
@@ -57,9 +54,5 @@ public class HttpUtils {
 				}
 			}
 		}).start();
-
-		// 考虑怎么处理表明查询失败！！！！！到时可以用一个接口方法，来反馈到界面上
-
 	}
-
 }

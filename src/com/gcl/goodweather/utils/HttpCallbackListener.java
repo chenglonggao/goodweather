@@ -1,7 +1,7 @@
 package com.gcl.goodweather.utils;
 
 /**
- * you can use the different impletations of this Interface to handle the response of 
+ * you can use the different impletations of this Interface to handle the callback of 
  * whether the request of the different areaLevel(like province, city, county) is successful;
  */
 public interface HttpCallbackListener {

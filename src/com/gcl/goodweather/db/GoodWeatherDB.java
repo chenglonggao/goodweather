@@ -24,7 +24,6 @@ public class GoodWeatherDB {
 
 	public GoodWeatherDB(Context context) {
 		helper = new GoodWeatherOpenHelper(context);//问题1：不同的helper对象生成的数据库是否是一个对象？？？
-		db = helper.getWritableDatabase();
 	}
 
 	
@@ -34,7 +33,8 @@ public class GoodWeatherDB {
 	 *  return provinceList
 	 */
 	public List<Province> loadProvinceFromDB() {
-
+		db = helper.getWritableDatabase();
+		
 		List<Province> provinceList = new ArrayList<Province>();
 		Cursor cursor = db.query("provinceTable", null, null, null, null, null,
 				null);
@@ -52,7 +52,9 @@ public class GoodWeatherDB {
 			provinceList.add(provinceObj);
 
 		}
-
+		
+		cursor.close();
+		db.close();
 		return provinceList;
 	}
 
@@ -60,6 +62,8 @@ public class GoodWeatherDB {
 	 * 往数据库中写入province的数据
 	 */
 	public void writeProvinceToDb(Province province){
+		db = helper.getWritableDatabase();
+		
 		String provinceCode = province.getprovinceCode();
 		String provinceName = province.getprovinceName();
 		
@@ -69,7 +73,7 @@ public class GoodWeatherDB {
 		values.put("provinceName", provinceName);
 		
 		db.insert("provinceTable", null, values);
-		
+		db.close();
 	}
 	
 	
@@ -80,6 +84,8 @@ public class GoodWeatherDB {
 	 *  return cityList
 	 */
 	public List<City> loadCityFromDB(String provinceCode) {
+		db = helper.getWritableDatabase();
+		
 		String arg = String.valueOf(provinceCode);
 		List<City> cityList = new ArrayList<City>();
 		Cursor cursor = db.query("cityTable", null, "provinceCode = ?", new String[]{arg}, null, null,
@@ -99,6 +105,8 @@ public class GoodWeatherDB {
 			
 		}
 		
+		cursor.close();
+		db.close();
 		return cityList;
 	}
 	
@@ -106,6 +114,8 @@ public class GoodWeatherDB {
 	 * 往数据库中写入city的数据
 	 */
 	public void writeCityToDb(City city){
+		db = helper.getWritableDatabase();
+		
 		String cityCode = city.getCityCode();
 		String cityName = city.getCityName();
 		String provinceCode = city.getProvinceCode();
@@ -117,7 +127,7 @@ public class GoodWeatherDB {
 		values.put("provinceCode", provinceCode);
 		
 		db.insert("cityTable", null, values);
-		
+		db.close();
 	}
 	
 	
@@ -129,6 +139,7 @@ public class GoodWeatherDB {
 	 *  return CountyList
 	 */
 	public List<County> loadCountyFromDB(String cityCode) {
+		db = helper.getWritableDatabase();
 		
 		List<County> CountyList = new ArrayList<County>();
 		Cursor cursor = db.query("countyTable", null, "cityCode = ?", new String[]{cityCode}, null, null,
@@ -149,6 +160,8 @@ public class GoodWeatherDB {
 			
 		} 
 		
+		cursor.close();
+		db.close();
 		return CountyList;
 	}
 	
@@ -156,6 +169,8 @@ public class GoodWeatherDB {
 	 * 往数据库中写入county的数据
 	 */
 	public void writeCountyToDb(County county){
+		db = helper.getWritableDatabase();
+		
 		String countyCode = county.getCountyCode();
 		String cityCode = county.getCityCode();
 		String countyName = county.getCountyName();
@@ -167,6 +182,7 @@ public class GoodWeatherDB {
 		values.put("cityCode", cityCode);
 		
 		db.insert("countyTable", null, values);
+		db.close();
 	}
  
 }
